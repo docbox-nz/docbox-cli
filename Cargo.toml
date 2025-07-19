@@ -15,7 +15,7 @@ dotenvy = "=0.15.7"
 clap = { version = "=4.5.40", features = ["derive"] }
 
 # Core business logic
-docbox-core = { version = "0.2.0", path = "../docbox/packages/docbox-core" }
+docbox-core = { version = "0.3.0", path = "../docbox/packages/docbox-core" }
 
 # Database access
 docbox-database = { version = "0.3.0", path = "../docbox/packages/docbox-database" }
