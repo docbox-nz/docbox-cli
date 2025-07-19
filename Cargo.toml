@@ -18,7 +18,7 @@ clap = { version = "=4.5.40", features = ["derive"] }
 docbox-core = { version = "0.2.0", path = "../docbox/packages/docbox-core" }
 
 # Database access
-docbox-database = { version = "0.2.0", path = "../docbox/packages/docbox-database" }
+docbox-database = { version = "0.3.0", path = "../docbox/packages/docbox-database" }
 
 # Search access
 docbox-search = { version = "0.2.0", path = "../docbox/packages/docbox-search" }

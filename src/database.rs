@@ -14,8 +14,8 @@ impl docbox_management::database::DatabaseProvider for CliDatabaseProvider {
         let options = PgConnectOptions::new()
             .host(&self.config.host)
             .port(self.config.port)
-            .username(&self.config.root_role_name)
-            .password(&self.config.root_secret_password)
+            .username(&self.config.setup_user.username)
+            .password(&self.config.setup_user.password)
             .database(database);
 
         PgPool::connect_with(options)
