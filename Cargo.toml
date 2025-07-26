@@ -21,13 +21,13 @@ docbox-core = { version = "0.3.0", path = "../docbox/packages/docbox-core" }
 docbox-database = { version = "0.3.0", path = "../docbox/packages/docbox-database" }
 
 # Search access
-docbox-search = { version = "0.2.0", path = "../docbox/packages/docbox-search" }
+docbox-search = { version = "0.3.0", path = "../docbox/packages/docbox-search" }
 
 # Management access
 docbox-management = { version = "0.1.0", path = "../docbox/packages/docbox-management" }
 
 # Asynchronous runtime & Helpers
-tokio = { version = "=1.45.1", features = ["full"] }
+tokio = { version = "=1.46.1", features = ["full"] }
 
 # Serialization and JSON
 serde = { version = "=1.0.219", features = ["derive"] }

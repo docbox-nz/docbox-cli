@@ -268,7 +268,7 @@ async fn main() -> eyre::Result<()> {
                     env: Some(env),
                     tenant_id,
                     skip_failed,
-                    target_migration_name: name,
+                    target_migration_name: Some(name),
                 },
             )
             .await?;
