@@ -37,7 +37,6 @@ Create a new file in this case `demo-tenant.json` this will contain the followin
     "db_name": "docbox-{tag}-{dev/prod}",
     "db_secret_name": "postgres/docbox/{dev/prod}/{tag}",
     "db_role_name": "{TENANT DB ROLE NAME}",
-    "db_password": "{TENANT DB ROLE PASSWORD}",
     "s3_name": "docbox-{tag}-{dev/prod}",
     "os_index_name": "docbox-{tag}-{dev/prod}",
     "s3_queue_arn": "arn:aws:sqs:ap-southeast-2:{YOUR_S3_UPLOADS_QUEUE_ARN}",
