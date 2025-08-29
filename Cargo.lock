@@ -1465,6 +1465,8 @@ dependencies = [
 [[package]]
 name = "docbox-core"
 version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "15fa8eb78f11bf404746dfdb4814dd88b005fbc46b5924b37e33cb84ca287afa"
 dependencies = [
  "age",
  "anyhow",
@@ -1506,6 +1508,8 @@ dependencies = [
 [[package]]
 name = "docbox-database"
 version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "713f5a3881e51046536f8cadcd44151d95a509cd3e246db36c913d5b199d3e5c"
 dependencies = [
  "chrono",
  "moka",
@@ -1523,6 +1527,8 @@ dependencies = [
 [[package]]
 name = "docbox-management"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6228b52e5f68e4afdab9c80990563dc1ae4996a5f8dd84cc59df6923214154e6"
 dependencies = [
  "anyhow",
  "aws-config",
@@ -1539,6 +1545,8 @@ dependencies = [
 [[package]]
 name = "docbox-search"
 version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8c97a4f86197b2526413d6ab5bde062b4ff1299186d97f7637c26bd60acc2fa1"
 dependencies = [
  "anyhow",
  "aws-config",

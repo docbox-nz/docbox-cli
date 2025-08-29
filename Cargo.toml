@@ -15,16 +15,16 @@ dotenvy = "=0.15.7"
 clap = { version = "=4.5.40", features = ["derive"] }
 
 # Core business logic
-docbox-core = { version = "0.3.0", path = "../docbox/packages/docbox-core" }
+docbox-core = { version = "0.3.0" }
 
 # Database access
-docbox-database = { version = "0.3.0", path = "../docbox/packages/docbox-database" }
+docbox-database = { version = "0.3.0" }
 
 # Search access
-docbox-search = { version = "0.3.0", path = "../docbox/packages/docbox-search" }
+docbox-search = { version = "0.3.0" }
 
 # Management access
-docbox-management = { version = "0.1.0", path = "../docbox/packages/docbox-management" }
+docbox-management = { version = "0.1.0" }
 
 # Asynchronous runtime & Helpers
 tokio = { version = "=1.46.1", features = ["full"] }
@@ -42,3 +42,8 @@ anyhow = "=1.0.98"
 thiserror = "=2.0.12"
 eyre = "=0.6.12"
 color-eyre = "=0.6.5"
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"
