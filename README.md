@@ -16,8 +16,8 @@ To create a new tenant with the CLI follow the [Create Tenant](https://docbox-nz
 
 # Migrations
 
-To be documented, but runs a SQL migration over the database (With optional filtering for environment or tenant) 
+To be documented, but runs pending tenant migrations (With optional filtering for environment or tenant) 
 
 ```sh
- cargo run --release -p docbox-cli -- migrate --env Development --file ./packages/docbox-cli/migrations/m1_file_parent_id.sql --tenant-id 00000000-0000-0000-0000-000000000000
+docbox-cli -- migrate --env Development --tenant-id 00000000-0000-0000-0000-000000000000
 ```
