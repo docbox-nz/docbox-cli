@@ -51,14 +51,14 @@ pub struct CliConfiguration {
 pub struct CliDatabaseConfiguration {
     pub host: String,
     pub port: u16,
-    pub setup_user: CliDatabaseSetupUserConfig,
+    pub setup_user: Option<CliDatabaseSetupUserConfig>,
+    pub setup_user_secret_name: Option<String>,
     pub root_secret_name: String,
-    pub root_role_name: String,
-    pub root_secret_password: String,
 }
 
 #[derive(Clone, Deserialize)]
 pub struct CliDatabaseSetupUserConfig {
+    #[serde(alias = "user")]
     pub username: String,
     pub password: String,
 }
@@ -182,8 +182,37 @@ async fn main() -> eyre::Result<()> {
     let search_factory =
         SearchIndexFactory::from_config(&aws_config, config.search.clone()).map_err(AnyhowError)?;
     let storage_factory = StorageLayerFactory::from_config(&aws_config, config.storage.clone());
-    let db_provider = CliDatabaseProvider {
-        config: config.database.clone(),
+
+    let db_provider = match (
+        config.database.setup_user.as_ref(),
+        config.database.setup_user_secret_name.as_deref(),
+    ) {
+        (Some(setup_user), _) => CliDatabaseProvider {
+            config: config.database.clone(),
+            username: setup_user.username.clone(),
+            password: setup_user.password.clone(),
+        },
+        (_, Some(setup_user_secret_name)) => {
+            let secret: CliDatabaseSetupUserConfig = secrets
+                .parsed_secret(setup_user_secret_name)
+                .await
+                .map_err(AnyhowError)
+                .context("failed to get setup user database secret")?
+                .context("setup user database secret not found")?;
+
+            tracing::debug!("loaded database secrets from secret manager");
+
+            CliDatabaseProvider {
+                config: config.database.clone(),
+                username: secret.username.clone(),
+                password: secret.password.clone(),
+            }
+        }
+        (None, None) => {
+            return Err(eyre::eyre!(
+                "must provided either setup_user or setup_user_secret_name in database config"
+            ));
+        }
     };
 
     match command {
