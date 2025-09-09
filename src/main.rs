@@ -1,8 +1,6 @@
 use clap::{Parser, Subcommand};
 use docbox_core::{
     aws::aws_config,
-    secrets::{AppSecretManager, SecretsManagerConfig},
-    storage::{StorageLayerFactory, StorageLayerFactoryConfig},
     tenant::rebuild_tenant_index::{rebuild_tenant_index, recreate_search_index_data},
 };
 use docbox_database::models::tenant::TenantId;
@@ -16,9 +14,11 @@ use docbox_management::{
     },
 };
 use docbox_search::{SearchIndexFactory, SearchIndexFactoryConfig};
+use docbox_secrets::{AppSecretManager, SecretsManagerConfig};
+use docbox_storage::{StorageLayerFactory, StorageLayerFactoryConfig};
 use eyre::{Context, ContextCompat};
 use serde::Deserialize;
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 
 use crate::database::CliDatabaseProvider;
 
@@ -85,7 +85,7 @@ pub enum Commands {
         #[arg(short, long)]
         tenant_id: TenantId,
 
-        /// File to save the rebuilt index to incase of failure
+        /// File to save the rebuilt index to in case of failure
         #[arg(short, long)]
         file: PathBuf,
     },
@@ -179,8 +179,10 @@ async fn main() -> eyre::Result<()> {
 
     let aws_config = aws_config().await;
     let secrets = AppSecretManager::from_config(&aws_config, config.secrets.clone());
+    let secrets = Arc::new(secrets);
     let search_factory =
-        SearchIndexFactory::from_config(&aws_config, config.search.clone()).map_err(AnyhowError)?;
+        SearchIndexFactory::from_config(&aws_config, secrets.clone(), config.search.clone())
+            .map_err(AnyhowError)?;
     let storage_factory = StorageLayerFactory::from_config(&aws_config, config.storage.clone());
 
     let db_provider = match (

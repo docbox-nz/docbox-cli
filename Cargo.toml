@@ -8,23 +8,29 @@ readme = "./README.md"
 license = "MIT"
 
 [dependencies]
-# Environment variables 
+# Environment variables
 dotenvy = "=0.15.7"
 
 # Command line parser
 clap = { version = "=4.5.40", features = ["derive"] }
 
 # Core business logic
-docbox-core = { version = "0.3.0" }
+docbox-core = { version = "0.4.0" }
 
 # Database access
-docbox-database = { version = "0.3.0" }
+docbox-database = { version = "0.4.0" }
 
 # Search access
-docbox-search = { version = "0.3.0" }
+docbox-search = { version = "0.4.0" }
 
 # Management access
-docbox-management = { version = "0.1.0" }
+docbox-management = { version = "0.2.0" }
+
+# Secrets management
+docbox-secrets = { version = "0.1.0" }
+
+# Storage access
+docbox-storage = { version = "0.1.0" }
 
 # Asynchronous runtime & Helpers
 tokio = { version = "=1.46.1", features = ["full"] }

@@ -3,6 +3,8 @@
   "words": [
     "docbox",
     "serde",
-    "thiserror"
+    "thiserror",
+    "dotenv",
+    "dotenvy"
   ]
 }

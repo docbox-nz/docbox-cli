@@ -1452,6 +1452,8 @@ dependencies = [
  "docbox-database",
  "docbox-management",
  "docbox-search",
+ "docbox-secrets",
+ "docbox-storage",
  "dotenvy",
  "eyre",
  "serde",
@@ -1464,23 +1466,21 @@ dependencies = [
 
 [[package]]
 name = "docbox-core"
-version = "0.3.1"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "15fa8eb78f11bf404746dfdb4814dd88b005fbc46b5924b37e33cb84ca287afa"
+checksum = "e1c2c85f144f53b6d2f9abb07be5c6994b9a4236022dbf9c462092800d0fd592"
 dependencies = [
- "age",
  "anyhow",
  "aws-config",
- "aws-sdk-s3",
- "aws-sdk-secretsmanager",
  "aws-sdk-sqs",
  "aws-smithy-types",
  "base64 0.22.1",
  "bytes",
- "bytes-utils",
  "chrono",
  "docbox-database",
  "docbox-search",
+ "docbox-secrets",
+ "docbox-storage",
  "futures",
  "html-escape",
  "image",
@@ -1507,11 +1507,12 @@ dependencies = [
 
 [[package]]
 name = "docbox-database"
-version = "0.3.1"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "713f5a3881e51046536f8cadcd44151d95a509cd3e246db36c913d5b199d3e5c"
+checksum = "968883c0fe17f86d81929e99b65fd1a819e4e9a9db812172e532de591cb1c614"
 dependencies = [
  "chrono",
+ "docbox-secrets",
  "moka",
  "serde",
  "serde_json",
@@ -1526,15 +1527,17 @@ dependencies = [
 
 [[package]]
 name = "docbox-management"
-version = "0.1.0"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6228b52e5f68e4afdab9c80990563dc1ae4996a5f8dd84cc59df6923214154e6"
+checksum = "34cb5323b405d906657d609763cea95704f583a8af52fb86bd023dc02c8859e9"
 dependencies = [
  "anyhow",
  "aws-config",
  "docbox-core",
  "docbox-database",
  "docbox-search",
+ "docbox-secrets",
+ "docbox-storage",
  "rand 0.8.5",
  "serde",
  "serde_json",
@@ -1544,14 +1547,15 @@ dependencies = [
 
 [[package]]
 name = "docbox-search"
-version = "0.3.0"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8c97a4f86197b2526413d6ab5bde062b4ff1299186d97f7637c26bd60acc2fa1"
+checksum = "f32155adb832cc3eb6970b436fa331dc92899f3d6174af0d431f8dbf817ed339"
 dependencies = [
  "anyhow",
  "aws-config",
  "chrono",
  "docbox-database",
+ "docbox-secrets",
  "garde",
  "itertools 0.14.0",
  "mime",
@@ -1560,9 +1564,45 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_with",
+ "tokio",
  "tracing",
  "utoipa",
  "uuid",
+]
+
+[[package]]
+name = "docbox-secrets"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b7f6a49590ade9674220d279b4b7e6000ed8d56b803c7f1c0f258c16f6cd640a"
+dependencies = [
+ "age",
+ "anyhow",
+ "aws-config",
+ "aws-sdk-secretsmanager",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.12",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "docbox-storage"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "76049623bff220cd3f0897b0355d6e39329dd8ce0f1d3cb110effa12a069d223"
+dependencies = [
+ "anyhow",
+ "aws-config",
+ "aws-sdk-s3",
+ "bytes",
+ "bytes-utils",
+ "chrono",
+ "docbox-database",
+ "futures",
+ "serde",
+ "tracing",
 ]
 
 [[package]]
