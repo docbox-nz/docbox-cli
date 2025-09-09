@@ -100,6 +100,13 @@ pub enum Commands {
         tenant_id: TenantId,
     },
 
+    /// Get all tenants
+    GetTenants {
+        // Environment to filter to
+        #[arg(short, long)]
+        env: Option<String>,
+    },
+
     /// Get a tenant
     GetTenant {
         // Environment to target
@@ -249,12 +256,28 @@ async fn main() -> eyre::Result<()> {
             Ok(())
         }
 
+        Commands::GetTenants { env } => {
+            let mut tenants =
+                docbox_management::tenant::get_tenants::get_tenants(&db_provider).await?;
+
+            if let Some(env) = env {
+                tenants.retain(|tenant| tenant.env.eq(&env));
+            }
+
+            tracing::debug!(?tenants, "found tenants");
+
+            println!("{}", serde_json::to_string_pretty(&tenants)?);
+
+            Ok(())
+        }
+
         Commands::GetTenant { env, tenant_id } => {
             let tenant =
                 docbox_management::tenant::get_tenant::get_tenant(&db_provider, &env, tenant_id)
                     .await?
                     .context("tenant not found")?;
-            tracing::debug!(?tenant, "found tenant");
+
+            println!("{}", serde_json::to_string_pretty(&tenant)?);
 
             Ok(())
         }
