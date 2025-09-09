@@ -28,7 +28,7 @@ mod database;
 #[command(version, about, long_about = None)]
 struct Args {
     #[command(subcommand)]
-    pub command: Option<Commands>,
+    pub command: Commands,
 
     /// Path to the cli configuration file
     #[arg(short, long)]
@@ -165,13 +165,6 @@ async fn main() -> eyre::Result<()> {
 
     let args = Args::parse();
 
-    let command = match args.command {
-        Some(command) => command,
-        None => {
-            return Err(eyre::eyre!("please specify a command"));
-        }
-    };
-
     // Load the create tenant config
     let config_raw = tokio::fs::read(args.config).await?;
     let config: CliConfiguration =
@@ -217,7 +210,7 @@ async fn main() -> eyre::Result<()> {
         }
     };
 
-    match command {
+    match args.command {
         Commands::CreateRoot => {
             docbox_management::root::initialize::initialize(
                 &db_provider,
