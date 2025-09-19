@@ -53,3 +53,11 @@ color-eyre = "=0.6.5"
 [profile.dist]
 inherits = "release"
 lto = "thin"
+
+[patch.crates-io]
+docbox-core = { version = "0.4.0", path = "../docbox/packages/docbox-core" }
+docbox-database = { version = "0.4.0", path = "../docbox/packages/docbox-database" }
+docbox-search = { version = "0.4.0", path = "../docbox/packages/docbox-search" }
+docbox-management = { version = "0.2.0", path = "../docbox/packages/docbox-management" }
+docbox-secrets = { version = "0.1.0", path = "../docbox/packages/docbox-secrets" }
+docbox-storage = { version = "0.1.0", path = "../docbox/packages/docbox-storage" }

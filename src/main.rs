@@ -3,7 +3,7 @@ use docbox_core::{
     aws::aws_config,
     tenant::rebuild_tenant_index::{rebuild_tenant_index, recreate_search_index_data},
 };
-use docbox_database::models::tenant::TenantId;
+use docbox_database::{DatabasePoolCache, DatabasePoolCacheConfig, models::tenant::TenantId};
 use docbox_management::{
     database::DatabaseProvider,
     tenant::{
@@ -134,9 +134,9 @@ pub enum Commands {
         // Environment to target
         #[arg(short, long)]
         env: String,
-        /// Name of the migration
+        /// Optional Name of the migration
         #[arg(short, long)]
-        name: String,
+        name: Option<String>,
         /// Specific tenant to run against
         #[arg(short, long)]
         tenant_id: Option<TenantId>,
@@ -180,9 +180,25 @@ async fn main() -> eyre::Result<()> {
     let aws_config = aws_config().await;
     let secrets = AppSecretManager::from_config(&aws_config, config.secrets.clone());
     let secrets = Arc::new(secrets);
-    let search_factory =
-        SearchIndexFactory::from_config(&aws_config, secrets.clone(), config.search.clone())
-            .map_err(AnyhowError)?;
+
+    // Setup database cache / connector
+    let db_cache = Arc::new(DatabasePoolCache::from_config(
+        DatabasePoolCacheConfig {
+            host: config.database.host.clone(),
+            port: config.database.port,
+            root_secret_name: config.database.root_secret_name.clone(),
+            max_connections: None,
+        },
+        secrets.clone(),
+    ));
+
+    let search_factory = SearchIndexFactory::from_config(
+        &aws_config,
+        secrets.clone(),
+        db_cache,
+        config.search.clone(),
+    )
+    .map_err(AnyhowError)?;
     let storage_factory = StorageLayerFactory::from_config(&aws_config, config.storage.clone());
 
     let db_provider = match (
@@ -315,7 +331,7 @@ async fn main() -> eyre::Result<()> {
                     env: Some(env),
                     tenant_id,
                     skip_failed,
-                    target_migration_name: Some(name),
+                    target_migration_name: name,
                 },
             )
             .await?;
