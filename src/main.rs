@@ -74,6 +74,9 @@ pub enum Commands {
     /// Initialize the root docbox database
     CreateRoot,
 
+    /// Check if the root docbox database is initialized
+    CheckRoot,
+
     /// Create a new tenant
     CreateTenant {
         /// File containing the tenant configuration details
@@ -165,9 +168,9 @@ async fn main() -> eyre::Result<()> {
         // Use the logging options from env variables
         .with_env_filter("aws_sdk_secretsmanager=info,aws_runtime=info,aws_smithy_runtime=info,hyper_util=info,debug")
         // Display source code file paths
-        .with_file(true)
+        .with_file(false)
         // Display source code line numbers
-        .with_line_number(true)
+        .with_line_number(false)
         // Don't display the event's target (module path)
         .with_target(false)
         // Build the subscriber
@@ -196,7 +199,6 @@ async fn main() -> eyre::Result<()> {
                 .context("failed to get config secret")?
                 .context("config secret not found")?
         }
-
 
         _ => eyre::bail!(
             "must provided either --config or --aws-config-secret check --help for more details"
@@ -267,6 +269,20 @@ async fn main() -> eyre::Result<()> {
             )
             .await
             .context("failed to setup root")?;
+            Ok(())
+        }
+
+        Commands::CheckRoot => {
+            let is_initialized = docbox_management::root::initialize::is_initialized(&db_provider)
+                .await
+                .context("failed to setup root")?;
+
+            if is_initialized {
+                tracing::info!("root is initialized");
+            } else {
+                tracing::info!("root is not initialized");
+            }
+
             Ok(())
         }
 
