@@ -30,9 +30,15 @@ struct Args {
     #[command(subcommand)]
     pub command: Commands,
 
-    /// Path to the cli configuration file
+    /// Path to the cli configuration file if loading settings from a configuration
+    /// JSON file
     #[arg(short, long)]
-    pub config: PathBuf,
+    pub config: Option<PathBuf>,
+
+    /// Name of a AWS secret manager secret containing the cli configuration, used when
+    /// loading a configuration from AWS secrets manager
+    #[arg(short, long)]
+    pub aws_config_secret: Option<String>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -171,13 +177,32 @@ async fn main() -> eyre::Result<()> {
     tracing::subscriber::set_global_default(subscriber)?;
 
     let args = Args::parse();
-
-    // Load the create tenant config
-    let config_raw = tokio::fs::read(args.config).await?;
-    let config: CliConfiguration =
-        serde_json::from_slice(&config_raw).context("failed to parse config")?;
-
     let aws_config = aws_config().await;
+
+    // Load the config data
+    let config: CliConfiguration = match (args.config, args.aws_config_secret) {
+        (Some(config_path), _) => {
+            let config_raw = tokio::fs::read(config_path).await?;
+            let config: CliConfiguration =
+                serde_json::from_slice(&config_raw).context("failed to parse config")?;
+            config
+        }
+        (_, Some(config_secret_name)) => {
+            let secrets = AppSecretManager::from_config(&aws_config, SecretsManagerConfig::Aws);
+            secrets
+                .parsed_secret(&config_secret_name)
+                .await
+                .map_err(AnyhowError)
+                .context("failed to get config secret")?
+                .context("config secret not found")?
+        }
+
+
+        _ => eyre::bail!(
+            "must provided either --config or --aws-config-secret check --help for more details"
+        ),
+    };
+
     let secrets = AppSecretManager::from_config(&aws_config, config.secrets.clone());
     let secrets = Arc::new(secrets);
 
