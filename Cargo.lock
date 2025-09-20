@@ -1445,7 +1445,6 @@ dependencies = [
 name = "docbox-cli"
 version = "0.4.0"
 dependencies = [
- "anyhow",
  "clap",
  "color-eyre",
  "docbox-core",
@@ -1468,7 +1467,6 @@ dependencies = [
 name = "docbox-core"
 version = "0.4.0"
 dependencies = [
- "anyhow",
  "aws-config",
  "aws-sdk-sqs",
  "aws-smithy-types",
@@ -1525,7 +1523,6 @@ dependencies = [
 name = "docbox-management"
 version = "0.2.0"
 dependencies = [
- "anyhow",
  "aws-config",
  "docbox-core",
  "docbox-database",
@@ -1543,7 +1540,6 @@ dependencies = [
 name = "docbox-search"
 version = "0.4.0"
 dependencies = [
- "anyhow",
  "aws-config",
  "chrono",
  "docbox-database",
@@ -1556,6 +1552,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_with",
+ "thiserror 2.0.12",
  "tokio",
  "tracing",
  "utoipa",
@@ -1567,7 +1564,6 @@ name = "docbox-secrets"
 version = "0.1.0"
 dependencies = [
  "age",
- "anyhow",
  "aws-config",
  "aws-sdk-secretsmanager",
  "serde",
@@ -1581,7 +1577,6 @@ dependencies = [
 name = "docbox-storage"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "aws-config",
  "aws-sdk-s3",
  "bytes",
@@ -1590,6 +1585,7 @@ dependencies = [
  "docbox-database",
  "futures",
  "serde",
+ "thiserror 2.0.12",
  "tracing",
 ]
 

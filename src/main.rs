@@ -14,7 +14,7 @@ use docbox_management::{
     },
 };
 use docbox_search::{SearchIndexFactory, SearchIndexFactoryConfig};
-use docbox_secrets::{AppSecretManager, SecretsManagerConfig};
+use docbox_secrets::{SecretManager, SecretsManagerConfig};
 use docbox_storage::{StorageLayerFactory, StorageLayerFactoryConfig};
 use eyre::{Context, ContextCompat};
 use serde::Deserialize;
@@ -40,10 +40,6 @@ struct Args {
     #[arg(short, long)]
     pub aws_config_secret: Option<String>,
 }
-
-#[derive(Debug, thiserror::Error)]
-#[error(transparent)]
-pub struct AnyhowError(anyhow::Error);
 
 #[derive(Clone, Deserialize)]
 pub struct CliConfiguration {
@@ -191,11 +187,10 @@ async fn main() -> eyre::Result<()> {
             config
         }
         (_, Some(config_secret_name)) => {
-            let secrets = AppSecretManager::from_config(&aws_config, SecretsManagerConfig::Aws);
+            let secrets = SecretManager::from_config(&aws_config, SecretsManagerConfig::Aws);
             secrets
                 .parsed_secret(&config_secret_name)
                 .await
-                .map_err(AnyhowError)
                 .context("failed to get config secret")?
                 .context("config secret not found")?
         }
@@ -205,7 +200,7 @@ async fn main() -> eyre::Result<()> {
         ),
     };
 
-    let secrets = AppSecretManager::from_config(&aws_config, config.secrets.clone());
+    let secrets = SecretManager::from_config(&aws_config, config.secrets.clone());
     let secrets = Arc::new(secrets);
 
     // Setup database cache / connector
@@ -224,8 +219,7 @@ async fn main() -> eyre::Result<()> {
         secrets.clone(),
         db_cache,
         config.search.clone(),
-    )
-    .map_err(AnyhowError)?;
+    )?;
     let storage_factory = StorageLayerFactory::from_config(&aws_config, config.storage.clone());
 
     let db_provider = match (
@@ -241,7 +235,6 @@ async fn main() -> eyre::Result<()> {
             let secret: CliDatabaseSetupUserConfig = secrets
                 .parsed_secret(setup_user_secret_name)
                 .await
-                .map_err(AnyhowError)
                 .context("failed to get setup user database secret")?
                 .context("setup user database secret not found")?;
 
@@ -399,9 +392,7 @@ async fn main() -> eyre::Result<()> {
                 .await
                 .context("failed to connect to tenant db")?;
 
-            let index_data = recreate_search_index_data(&db, &storage)
-                .await
-                .map_err(AnyhowError)?;
+            let index_data = recreate_search_index_data(&db, &storage).await?;
             tracing::debug!("all data loaded: {}", index_data.len());
 
             {
@@ -413,7 +404,6 @@ async fn main() -> eyre::Result<()> {
 
             rebuild_tenant_index(&db, &search, &storage)
                 .await
-                .map_err(AnyhowError)
                 .context("failed to rebuild tenant index")?;
             Ok(())
         }

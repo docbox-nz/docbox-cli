@@ -44,7 +44,6 @@ tracing = "=0.1.41"
 tracing-subscriber = { version = "=0.3.20", features = ["env-filter"] }
 
 # Error handling
-anyhow = "=1.0.98"
 thiserror = "=2.0.12"
 eyre = "=0.6.12"
 color-eyre = "=0.6.5"
