@@ -165,6 +165,20 @@ pub enum Commands {
         #[arg(short, long)]
         skip_failed: bool,
     },
+
+    /// Set the allowed CORS origins for a tenant
+    /// (Overrides existing CORS configuration)
+    SetAllowedStorageCorsOrigins {
+        // Environment to target
+        #[arg(short, long)]
+        env: String,
+        /// ID of the tenant to target
+        #[arg(short, long)]
+        tenant_id: TenantId,
+        /// Allowed origins to set
+        #[arg(short, long)]
+        origin: Vec<String>,
+    },
 }
 
 #[tokio::main]
@@ -644,6 +658,37 @@ async fn app(args: Args) -> eyre::Result<()> {
             rebuild_tenant_index(&db, &search, &storage)
                 .await
                 .context("failed to rebuild tenant index")?;
+
+            Ok(())
+        }
+
+        Commands::SetAllowedStorageCorsOrigins {
+            env,
+            tenant_id,
+            origin,
+        } => {
+            let tenant =
+                docbox_management::tenant::get_tenant::get_tenant(&db_provider, &env, tenant_id)
+                    .await?
+                    .context("tenant not found")?;
+
+            let storage = storage_factory.create_storage_layer(&tenant);
+
+            storage.set_bucket_cors_origins(origin).await?;
+
+            match args.format {
+                OutputFormat::Human => {
+                    println!("updated tenant allowed origins")
+                }
+                OutputFormat::Json => {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&json!({
+                            "success": true
+                        }))?
+                    );
+                }
+            }
 
             Ok(())
         }
