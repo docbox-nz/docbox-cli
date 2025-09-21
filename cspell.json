@@ -5,6 +5,7 @@
     "serde",
     "thiserror",
     "dotenv",
-    "dotenvy"
+    "dotenvy",
+    "indicatif"
   ]
 }

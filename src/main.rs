@@ -19,6 +19,8 @@ use docbox_storage::{StorageLayerFactory, StorageLayerFactoryConfig};
 use eyre::{Context, ContextCompat};
 use serde::Deserialize;
 use std::{path::PathBuf, sync::Arc};
+use tracing_indicatif::IndicatifLayer;
+use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
 
 use crate::database::CliDatabaseProvider;
 
@@ -159,21 +161,34 @@ async fn main() -> eyre::Result<()> {
     // Setup colorful error logging
     color_eyre::install()?;
 
-    // Start configuring a `fmt` subscriber
-    let subscriber = tracing_subscriber::fmt()
-        // Use the logging options from env variables
-        .with_env_filter("aws_sdk_secretsmanager=info,aws_runtime=info,aws_smithy_runtime=info,hyper_util=info,debug")
-        // Display source code file paths
-        .with_file(false)
-        // Display source code line numbers
-        .with_line_number(false)
-        // Don't display the event's target (module path)
-        .with_target(false)
-        // Build the subscriber
-        .finish();
+    let indicatif_layer = IndicatifLayer::new();
 
-    // use that subscriber to process traces emitted after this point
-    tracing::subscriber::set_global_default(subscriber)?;
+    tracing_subscriber::registry()
+        .with(
+            EnvFilter::from_default_env()
+                // Provide logging from docbox by default
+                .add_directive("docbox=info".parse()?)
+                .add_directive("docbox_core=info".parse()?)
+                .add_directive("docbox_database=info".parse()?)
+                .add_directive("docbox_management=info".parse()?)
+                .add_directive("docbox_search=info".parse()?)
+                .add_directive("docbox_secrets=info".parse()?)
+                .add_directive("docbox_storage=info".parse()?)
+                //
+                .add_directive("aws_sdk_secretsmanager=info".parse()?)
+                .add_directive("aws_runtime=info".parse()?)
+                .add_directive("aws_smithy_runtime=info".parse()?)
+                .add_directive("hyper_util=info".parse()?),
+        )
+        .with(
+            tracing_subscriber::fmt::layer()
+                .with_line_number(false)
+                .with_target(false)
+                .with_file(false)
+                .with_writer(indicatif_layer.get_stderr_writer()),
+        )
+        .with(indicatif_layer)
+        .init();
 
     let args = Args::parse();
     let aws_config = aws_config().await;
@@ -271,9 +286,9 @@ async fn main() -> eyre::Result<()> {
                 .context("failed to setup root")?;
 
             if is_initialized {
-                tracing::info!("root is initialized");
+                println!("root is initialized");
             } else {
-                tracing::info!("root is not initialized");
+                println!("root is not initialized");
             }
 
             Ok(())
@@ -285,7 +300,7 @@ async fn main() -> eyre::Result<()> {
             let tenant_config: CreateTenantConfig =
                 serde_json::from_slice(&tenant_config_raw).context("failed to parse config")?;
 
-            tracing::debug!(?tenant_config, "creating tenant");
+            tracing::info!(?tenant_config, "creating tenant");
 
             let tenant = docbox_management::tenant::create_tenant::create_tenant(
                 &db_provider,
@@ -313,8 +328,6 @@ async fn main() -> eyre::Result<()> {
             if let Some(env) = env {
                 tenants.retain(|tenant| tenant.env.eq(&env));
             }
-
-            tracing::debug!(?tenants, "found tenants");
 
             println!("{}", serde_json::to_string_pretty(&tenants)?);
 
@@ -348,7 +361,7 @@ async fn main() -> eyre::Result<()> {
             )
             .await?;
 
-            tracing::debug!(?outcome, "completed migrations");
+            println!("{}", serde_json::to_string_pretty(&outcome)?);
             Ok(())
         }
 
@@ -370,7 +383,7 @@ async fn main() -> eyre::Result<()> {
             )
             .await?;
 
-            tracing::debug!(?outcome, "migration complete");
+            println!("{}", serde_json::to_string_pretty(&outcome)?);
             Ok(())
         }
 
@@ -405,6 +418,7 @@ async fn main() -> eyre::Result<()> {
             rebuild_tenant_index(&db, &search, &storage)
                 .await
                 .context("failed to rebuild tenant index")?;
+
             Ok(())
         }
     }
