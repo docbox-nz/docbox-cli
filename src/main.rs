@@ -1,4 +1,5 @@
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
+use comfy_table::{Cell, Table, modifiers::UTF8_ROUND_CORNERS, presets::UTF8_FULL};
 use docbox_core::{
     aws::aws_config,
     tenant::rebuild_tenant_index::{rebuild_tenant_index, recreate_search_index_data},
@@ -18,6 +19,7 @@ use docbox_secrets::{SecretManager, SecretsManagerConfig};
 use docbox_storage::{StorageLayerFactory, StorageLayerFactoryConfig};
 use eyre::{Context, ContextCompat};
 use serde::Deserialize;
+use serde_json::json;
 use std::{path::PathBuf, sync::Arc};
 use tracing_indicatif::IndicatifLayer;
 use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
@@ -41,6 +43,18 @@ struct Args {
     /// loading a configuration from AWS secrets manager
     #[arg(short, long)]
     pub aws_config_secret: Option<String>,
+
+    #[arg(short, long, default_value = "human")]
+    pub format: OutputFormat,
+}
+
+#[derive(ValueEnum, Clone)]
+pub enum OutputFormat {
+    /// Provide output in human readable format
+    Human,
+
+    /// Provide output in machine readable JSON format
+    Json,
 }
 
 #[derive(Clone, Deserialize)]
@@ -155,6 +169,33 @@ pub enum Commands {
 
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
+    let args = Args::parse();
+    let format = args.format.clone();
+
+    if let Err(error) = app(args).await {
+        match format {
+            OutputFormat::Human => {
+                return Err(error);
+            }
+            OutputFormat::Json => {
+                tracing::error!(?error, "error occurred");
+
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&json!({
+                        "error": error.to_string()
+                    }))?
+                );
+
+                return Err(error);
+            }
+        }
+    }
+
+    Ok(())
+}
+
+async fn app(args: Args) -> eyre::Result<()> {
     // Load environment variables
     _ = dotenvy::dotenv();
 
@@ -190,7 +231,6 @@ async fn main() -> eyre::Result<()> {
         .with(indicatif_layer)
         .init();
 
-    let args = Args::parse();
     let aws_config = aws_config().await;
 
     // Load the config data
@@ -277,6 +317,21 @@ async fn main() -> eyre::Result<()> {
             )
             .await
             .context("failed to setup root")?;
+
+            match args.format {
+                OutputFormat::Human => {
+                    println!("successfully created root");
+                }
+                OutputFormat::Json => {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&json!({
+                            "initialized": true
+                        }))?
+                    );
+                }
+            }
+
             Ok(())
         }
 
@@ -285,10 +340,22 @@ async fn main() -> eyre::Result<()> {
                 .await
                 .context("failed to setup root")?;
 
-            if is_initialized {
-                println!("root is initialized");
-            } else {
-                println!("root is not initialized");
+            match args.format {
+                OutputFormat::Human => {
+                    if is_initialized {
+                        println!("root is initialized");
+                    } else {
+                        println!("root is not initialized");
+                    }
+                }
+                OutputFormat::Json => {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&json!({
+                            "is_initialized": is_initialized
+                        }))?
+                    );
+                }
             }
 
             Ok(())
@@ -312,12 +379,51 @@ async fn main() -> eyre::Result<()> {
             .await?;
 
             tracing::info!(?tenant, "tenant created successfully");
+
+            match args.format {
+                OutputFormat::Human => {
+                    println!("tenant created successfully");
+
+                    let mut table = Table::new();
+                    table
+                        .load_preset(UTF8_FULL)
+                        .apply_modifier(UTF8_ROUND_CORNERS)
+                        .set_content_arrangement(comfy_table::ContentArrangement::Dynamic)
+                        .set_header(vec!["ID", "Name", "Env"])
+                        .add_row(vec![
+                            Cell::new(tenant.id.to_string()),
+                            Cell::new(tenant.name),
+                            Cell::new(tenant.env),
+                        ]);
+
+                    println!("{table}")
+                }
+                OutputFormat::Json => {
+                    println!("{}", serde_json::to_string_pretty(&tenant)?);
+                }
+            }
+
             Ok(())
         }
 
         Commands::DeleteTenant { env, tenant_id } => {
             docbox_management::tenant::delete_tenant::delete_tenant(&db_provider, &env, tenant_id)
                 .await?;
+
+            match args.format {
+                OutputFormat::Human => {
+                    println!("deleted tenant")
+                }
+                OutputFormat::Json => {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&json!({
+                            "deleted": true
+                        }))?
+                    );
+                }
+            }
+
             Ok(())
         }
 
@@ -329,7 +435,29 @@ async fn main() -> eyre::Result<()> {
                 tenants.retain(|tenant| tenant.env.eq(&env));
             }
 
-            println!("{}", serde_json::to_string_pretty(&tenants)?);
+            match args.format {
+                OutputFormat::Human => {
+                    let mut table = Table::new();
+                    table
+                        .load_preset(UTF8_FULL)
+                        .apply_modifier(UTF8_ROUND_CORNERS)
+                        .set_content_arrangement(comfy_table::ContentArrangement::Dynamic)
+                        .set_header(vec!["ID", "Name", "Env"]);
+
+                    for tenant in tenants {
+                        table.add_row(vec![
+                            Cell::new(tenant.id.to_string()),
+                            Cell::new(tenant.name),
+                            Cell::new(tenant.env),
+                        ]);
+                    }
+
+                    println!("{table}")
+                }
+                OutputFormat::Json => {
+                    println!("{}", serde_json::to_string_pretty(&tenants)?);
+                }
+            }
 
             Ok(())
         }
@@ -340,7 +468,41 @@ async fn main() -> eyre::Result<()> {
                     .await?
                     .context("tenant not found")?;
 
-            println!("{}", serde_json::to_string_pretty(&tenant)?);
+            match args.format {
+                OutputFormat::Human => {
+                    let mut table = Table::new();
+                    table
+                        .load_preset(UTF8_FULL)
+                        .apply_modifier(UTF8_ROUND_CORNERS)
+                        .set_content_arrangement(comfy_table::ContentArrangement::Dynamic);
+
+                    table.add_row(vec![Cell::new("ID"), Cell::new(tenant.id.to_string())]);
+                    table.add_row(vec![Cell::new("Name"), Cell::new(tenant.name)]);
+                    table.add_row(vec![Cell::new("Env"), Cell::new(tenant.env)]);
+                    table.add_row(vec![Cell::new("DB Name"), Cell::new(tenant.db_name)]);
+                    table.add_row(vec![
+                        Cell::new("DB Secret Name"),
+                        Cell::new(tenant.db_secret_name),
+                    ]);
+                    table.add_row(vec![
+                        Cell::new("Storage Bucket Name"),
+                        Cell::new(tenant.s3_name),
+                    ]);
+                    table.add_row(vec![
+                        Cell::new("Search Index Name"),
+                        Cell::new(tenant.os_index_name),
+                    ]);
+                    table.add_row(vec![
+                        Cell::new("Event Queue URL"),
+                        Cell::new(tenant.event_queue_url.unwrap_or_default()),
+                    ]);
+
+                    println!("{table}");
+                }
+                OutputFormat::Json => {
+                    println!("{}", serde_json::to_string_pretty(&tenant)?);
+                }
+            }
 
             Ok(())
         }
@@ -361,7 +523,39 @@ async fn main() -> eyre::Result<()> {
             )
             .await?;
 
-            println!("{}", serde_json::to_string_pretty(&outcome)?);
+            match args.format {
+                OutputFormat::Human => {
+                    let mut table = Table::new();
+                    table
+                        .load_preset(UTF8_FULL)
+                        .apply_modifier(UTF8_ROUND_CORNERS)
+                        .set_content_arrangement(comfy_table::ContentArrangement::Dynamic)
+                        .set_header(vec!["ID", "Name", "Env", "Outcome"]);
+
+                    for tenant in outcome.applied_tenants {
+                        table.add_row(vec![
+                            Cell::new(tenant.tenant_id.to_string()),
+                            Cell::new(tenant.name),
+                            Cell::new(tenant.env),
+                            Cell::new("Success"),
+                        ]);
+                    }
+                    for (error, tenant) in outcome.failed_tenants {
+                        table.add_row(vec![
+                            Cell::new(tenant.tenant_id.to_string()),
+                            Cell::new(tenant.name),
+                            Cell::new(tenant.env),
+                            Cell::new(format!("Failed: {error}")),
+                        ]);
+                    }
+
+                    println!("{table}")
+                }
+                OutputFormat::Json => {
+                    println!("{}", serde_json::to_string_pretty(&outcome)?);
+                }
+            }
+
             Ok(())
         }
 
@@ -383,7 +577,39 @@ async fn main() -> eyre::Result<()> {
             )
             .await?;
 
-            println!("{}", serde_json::to_string_pretty(&outcome)?);
+            match args.format {
+                OutputFormat::Human => {
+                    let mut table = Table::new();
+                    table
+                        .load_preset(UTF8_FULL)
+                        .apply_modifier(UTF8_ROUND_CORNERS)
+                        .set_content_arrangement(comfy_table::ContentArrangement::Dynamic)
+                        .set_header(vec!["ID", "Name", "Env", "Outcome"]);
+
+                    for tenant in outcome.applied_tenants {
+                        table.add_row(vec![
+                            Cell::new(tenant.tenant_id.to_string()),
+                            Cell::new(tenant.name),
+                            Cell::new(tenant.env),
+                            Cell::new("Success"),
+                        ]);
+                    }
+                    for (error, tenant) in outcome.failed_tenants {
+                        table.add_row(vec![
+                            Cell::new(tenant.tenant_id.to_string()),
+                            Cell::new(tenant.name),
+                            Cell::new(tenant.env),
+                            Cell::new(format!("Failed: {error}")),
+                        ]);
+                    }
+
+                    println!("{table}")
+                }
+                OutputFormat::Json => {
+                    println!("{}", serde_json::to_string_pretty(&outcome)?);
+                }
+            }
+
             Ok(())
         }
 
