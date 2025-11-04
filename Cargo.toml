@@ -39,7 +39,7 @@ tracing = "=0.1.41"
 tracing-subscriber = { version = "=0.3.20", features = ["env-filter"] }
 
 # Sending requests to the API server
-reqwest = {  version = "=0.12.24", features = ["json", "stream"] }
+reqwest = {  version = "=0.12.24", default-features = false,  features = ["charset", "http2", "system-proxy", "rustls-tls"] }
 
 # Error handling
 thiserror = "=2.0.17"
