@@ -53,10 +53,10 @@ comfy-table = "7.2.1"
 inherits = "release"
 lto = "thin"
 
-[patch.crates-io]
-docbox-core = { version = "0.5.0", path = "../docbox/packages/docbox-core" }
-docbox-database = { version = "0.5.0", path = "../docbox/packages/docbox-database" }
-docbox-search = { version = "0.5.0", path = "../docbox/packages/docbox-search" }
-docbox-management = { version = "0.3.0", path = "../docbox/packages/docbox-management" }
-docbox-secrets = { version = "0.2.0", path = "../docbox/packages/docbox-secrets" }
-docbox-storage = { version = "0.2.0", path = "../docbox/packages/docbox-storage" }
+# [patch.crates-io]
+# docbox-core = { version = "0.5.0", path = "../docbox/packages/docbox-core" }
+# docbox-database = { version = "0.5.0", path = "../docbox/packages/docbox-database" }
+# docbox-search = { version = "0.5.0", path = "../docbox/packages/docbox-search" }
+# docbox-management = { version = "0.3.0", path = "../docbox/packages/docbox-management" }
+# docbox-secrets = { version = "0.2.0", path = "../docbox/packages/docbox-secrets" }
+# docbox-storage = { version = "0.2.0", path = "../docbox/packages/docbox-storage" }

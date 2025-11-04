@@ -180,6 +180,9 @@ pub enum Commands {
         skip_failed: bool,
     },
 
+    /// Run a root migration
+    MigrateRoot,
+
     /// Run a search migration
     MigrateSearch {
         // Environment to target
@@ -641,6 +644,26 @@ async fn app(args: Args) -> eyre::Result<()> {
                 }
                 OutputFormat::Json => {
                     println!("{}", serde_json::to_string_pretty(&outcome)?);
+                }
+            }
+
+            Ok(())
+        }
+
+        Commands::MigrateRoot => {
+            docbox_management::root::migrate_root::migrate_root(&db_provider, None).await?;
+
+            match args.format {
+                OutputFormat::Human => {
+                    println!("Migrations applied")
+                }
+                OutputFormat::Json => {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&json!({
+                            "success": true
+                        }))?
+                    );
                 }
             }
 

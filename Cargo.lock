@@ -1357,6 +1357,8 @@ dependencies = [
 [[package]]
 name = "docbox-core"
 version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "96e4f8a2d14ac9bed8f66dfbd430f68195ca4781987bd61d7592e9b0b36228b2"
 dependencies = [
  "aws-config",
  "aws-sdk-sqs",
@@ -1386,6 +1388,8 @@ dependencies = [
 [[package]]
 name = "docbox-database"
 version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "85ab2de2612a1b7521f3b32f49cc5f054c87cf008fec0bd8c5e09af7d0c21aff"
 dependencies = [
  "chrono",
  "docbox-secrets",
@@ -1404,6 +1408,8 @@ dependencies = [
 [[package]]
 name = "docbox-management"
 version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2e31dc3b993c0064488c07206919a0898e6d21659b335567545d2299825f2149"
 dependencies = [
  "aws-config",
  "docbox-core",
@@ -1423,6 +1429,8 @@ dependencies = [
 [[package]]
 name = "docbox-processing"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a8a7d91ad445b7e73a0ca18fa15fc3a31096b58292e2b3ccf0ae06fe686d6c06"
 dependencies = [
  "base64 0.22.1",
  "bytes",
@@ -1448,6 +1456,8 @@ dependencies = [
 [[package]]
 name = "docbox-search"
 version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "53b777214d370bc595e400778b9750c9a36442f7138031d2a08e08d27558a46b"
 dependencies = [
  "aws-config",
  "chrono",
@@ -1471,6 +1481,8 @@ dependencies = [
 [[package]]
 name = "docbox-secrets"
 version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "14a122e8fe7cbad812e523ce4522d5d4888d5681d64557f2831e5b6bad0c214d"
 dependencies = [
  "aws-config",
  "aws-sdk-secretsmanager",
@@ -1484,6 +1496,8 @@ dependencies = [
 [[package]]
 name = "docbox-storage"
 version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4b8ce3f86408a3dc1761c40eaa950ead05c8f55cfa9bcb055cb37fbb432da2bd"
 dependencies = [
  "aws-config",
  "aws-sdk-s3",
@@ -2296,7 +2310,7 @@ dependencies = [
  "libc",
  "percent-encoding",
  "pin-project-lite",
- "socket2 0.5.10",
+ "socket2 0.6.1",
  "system-configuration",
  "tokio",
  "tower-service",
@@ -4606,7 +4620,7 @@ dependencies = [
  "getrandom 0.3.3",
  "once_cell",
  "rustix",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.0",
 ]
 
 [[package]]
