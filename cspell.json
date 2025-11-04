@@ -6,6 +6,7 @@
     "thiserror",
     "dotenv",
     "dotenvy",
-    "indicatif"
+    "indicatif",
+    "reqwest"
   ]
 }

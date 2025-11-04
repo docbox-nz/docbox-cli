@@ -1,9 +1,8 @@
+use crate::AdminDatabaseConfiguration;
 use docbox_database::{DbResult, PgConnectOptions, PgPool};
 
-use crate::CliDatabaseConfiguration;
-
 pub struct CliDatabaseProvider {
-    pub config: CliDatabaseConfiguration,
+    pub config: AdminDatabaseConfiguration,
     pub username: String,
     pub password: String,
 }

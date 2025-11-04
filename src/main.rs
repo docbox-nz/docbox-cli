@@ -1,24 +1,27 @@
 use clap::{Parser, Subcommand, ValueEnum};
 use comfy_table::{Cell, Table, modifiers::UTF8_ROUND_CORNERS, presets::UTF8_FULL};
 use docbox_core::{
-    aws::aws_config,
+    aws::{SqsClient, aws_config},
+    events::{EventPublisherFactory, sqs::SqsEventPublisherFactory},
     tenant::rebuild_tenant_index::{rebuild_tenant_index, recreate_search_index_data},
 };
 use docbox_database::{DatabasePoolCache, DatabasePoolCacheConfig, models::tenant::TenantId};
 use docbox_management::{
-    database::DatabaseProvider,
+    database::{DatabaseProvider, close_pool_on_drop},
     tenant::{
         create_tenant::CreateTenantConfig,
+        delete_tenant::{DeleteTenant, DeleteTenantOptions},
         get_tenant::get_tenant,
         migrate_tenants::MigrateTenantsConfig,
         migrate_tenants_search::{MigrateTenantsSearchConfig, migrate_tenants_search},
     },
 };
 use docbox_search::{SearchIndexFactory, SearchIndexFactoryConfig};
-use docbox_secrets::{SecretManager, SecretsManagerConfig};
+use docbox_secrets::{SecretManager, SecretsManagerConfig, aws::AwsSecretManagerConfig};
 use docbox_storage::{StorageLayerFactory, StorageLayerFactoryConfig};
 use eyre::{Context, ContextCompat};
-use serde::Deserialize;
+use reqwest::header::HeaderValue;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::{path::PathBuf, sync::Arc};
 use tracing_indicatif::IndicatifLayer;
@@ -59,23 +62,30 @@ pub enum OutputFormat {
 
 #[derive(Clone, Deserialize)]
 pub struct CliConfiguration {
-    pub database: CliDatabaseConfiguration,
+    pub api: ApiConfig,
+    pub database: AdminDatabaseConfiguration,
     pub secrets: SecretsManagerConfig,
     pub search: SearchIndexFactoryConfig,
     pub storage: StorageLayerFactoryConfig,
 }
 
-#[derive(Clone, Deserialize)]
-pub struct CliDatabaseConfiguration {
+#[derive(Clone, Deserialize, Serialize)]
+pub struct ApiConfig {
+    pub url: String,
+    pub api_key: Option<String>,
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+pub struct AdminDatabaseConfiguration {
     pub host: String,
     pub port: u16,
-    pub setup_user: Option<CliDatabaseSetupUserConfig>,
+    pub setup_user: Option<AdminDatabaseSetupUserConfig>,
     pub setup_user_secret_name: Option<String>,
     pub root_secret_name: String,
 }
 
-#[derive(Clone, Deserialize)]
-pub struct CliDatabaseSetupUserConfig {
+#[derive(Clone, Deserialize, Serialize)]
+pub struct AdminDatabaseSetupUserConfig {
     #[serde(alias = "user")]
     pub username: String,
     pub password: String,
@@ -119,6 +129,26 @@ pub enum Commands {
         /// Specific tenant to delete
         #[arg(short, long)]
         tenant_id: TenantId,
+        /// Whether to delete data stored within the tenant
+        #[arg(short = 'c', long)]
+        delete_contents: Option<bool>,
+        /// Whether to delete the tenant storage bucket itself (Requires "delete-contents")
+        #[arg(short = 'd', long)]
+        delete_database: Option<bool>,
+        /// Whether to delete the tenant search index itself (Requires "delete-contents")
+        #[arg(short = 'i', long)]
+        delete_search: Option<bool>,
+        /// Whether to delete the tenant database itself (Requires "delete-contents")
+        #[arg(short = 's', long)]
+        delete_storage: Option<bool>,
+        /// Whether when using AWS secrets manager to immediately delete the secret
+        /// or to allow it to be recoverable for a short period of time. (Requires "delete-contents")
+        ///
+        /// Note: If the secret is not immediately deleted a new tenant will not be
+        /// able to make use of this secret name until the 30day recovery window
+        /// has ended.
+        #[arg(short = 'p', long)]
+        permanently_delete_secret: Option<bool>,
     },
 
     /// Get all tenants
@@ -256,7 +286,13 @@ async fn app(args: Args) -> eyre::Result<()> {
             config
         }
         (_, Some(config_secret_name)) => {
-            let secrets = SecretManager::from_config(&aws_config, SecretsManagerConfig::Aws);
+            let secrets = SecretManager::from_config(
+                &aws_config,
+                SecretsManagerConfig::Aws(
+                    AwsSecretManagerConfig::from_env()
+                        .context("failed to load aws secrets manager config")?,
+                ),
+            );
             secrets
                 .parsed_secret(&config_secret_name)
                 .await
@@ -270,7 +306,14 @@ async fn app(args: Args) -> eyre::Result<()> {
     };
 
     let secrets = SecretManager::from_config(&aws_config, config.secrets.clone());
-    let secrets = Arc::new(secrets);
+
+    // Create the SQS client
+    // Warning: Will panic if the configuration provided is invalid
+    let sqs_client = SqsClient::new(&aws_config);
+
+    // Setup event publisher factories
+    let sqs_publisher_factory = SqsEventPublisherFactory::new(sqs_client.clone());
+    let events = EventPublisherFactory::new(sqs_publisher_factory);
 
     // Setup database cache / connector
     let db_cache = Arc::new(DatabasePoolCache::from_config(
@@ -279,6 +322,7 @@ async fn app(args: Args) -> eyre::Result<()> {
             port: config.database.port,
             root_secret_name: config.database.root_secret_name.clone(),
             max_connections: None,
+            ..Default::default()
         },
         secrets.clone(),
     ));
@@ -301,7 +345,7 @@ async fn app(args: Args) -> eyre::Result<()> {
             password: setup_user.password.clone(),
         },
         (_, Some(setup_user_secret_name)) => {
-            let secret: CliDatabaseSetupUserConfig = secrets
+            let secret: AdminDatabaseSetupUserConfig = secrets
                 .parsed_secret(setup_user_secret_name)
                 .await
                 .context("failed to get setup user database secret")?
@@ -420,9 +464,39 @@ async fn app(args: Args) -> eyre::Result<()> {
             Ok(())
         }
 
-        Commands::DeleteTenant { env, tenant_id } => {
-            docbox_management::tenant::delete_tenant::delete_tenant(&db_provider, &env, tenant_id)
-                .await?;
+        Commands::DeleteTenant {
+            env,
+            tenant_id,
+            delete_contents,
+            delete_database,
+            delete_search,
+            delete_storage,
+            permanently_delete_secret,
+        } => {
+            // Tell the API server to flush and close its database pools
+            flush_tenant_cache(&config.api)
+                .await
+                .context("failed to flush tenant cache")?;
+
+            docbox_management::tenant::delete_tenant::delete_tenant(
+                &db_provider,
+                &search_factory,
+                &storage_factory,
+                &events,
+                &secrets,
+                DeleteTenant {
+                    env,
+                    tenant_id,
+                    options: DeleteTenantOptions {
+                        delete_contents: delete_contents.unwrap_or_default(),
+                        delete_database: delete_database.unwrap_or_default(),
+                        delete_search: delete_search.unwrap_or_default(),
+                        delete_storage: delete_storage.unwrap_or_default(),
+                        permanently_delete_secret: permanently_delete_secret.unwrap_or_default(),
+                    },
+                },
+            )
+            .await?;
 
             match args.format {
                 OutputFormat::Human => {
@@ -645,6 +719,8 @@ async fn app(args: Args) -> eyre::Result<()> {
                 .await
                 .context("failed to connect to tenant db")?;
 
+            let _guard = close_pool_on_drop(&db);
+
             let index_data = recreate_search_index_data(&db, &storage).await?;
             tracing::debug!("all data loaded: {}", index_data.len());
 
@@ -693,4 +769,32 @@ async fn app(args: Args) -> eyre::Result<()> {
             Ok(())
         }
     }
+}
+
+/// Makes a request to the docbox API server telling it to flush its
+/// database cache
+pub async fn flush_tenant_cache(api: &ApiConfig) -> eyre::Result<()> {
+    let client = reqwest::Client::new();
+
+    let url = format!("{}/admin/flush-db-cache", &api.url);
+    let mut req_builder = client.post(&url);
+
+    if let Some(api_key) = api.api_key.as_ref() {
+        req_builder = req_builder.header(
+            reqwest::header::HeaderName::from_static("x-docbox-api-key"),
+            HeaderValue::from_str(api_key).context("failed to make header value")?,
+        );
+    }
+
+    let response = req_builder
+        .send()
+        .await
+        .inspect_err(|error| tracing::error!(?error, "failed to request docbox"))
+        .context("failed to request docbox")?;
+
+    response
+        .error_for_status()
+        .context("error response flushing db cache")?;
+
+    Ok(())
 }
