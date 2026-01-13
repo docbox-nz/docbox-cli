@@ -1,13 +1,18 @@
 use clap::{Parser, Subcommand, ValueEnum};
 use comfy_table::{Cell, Table, modifiers::UTF8_ROUND_CORNERS, presets::UTF8_FULL};
-use docbox_core::{
-    aws::{SqsClient, aws_config},
-    events::{EventPublisherFactory, sqs::SqsEventPublisherFactory},
-    tenant::rebuild_tenant_index::{rebuild_tenant_index, recreate_search_index_data},
-};
-use docbox_database::{DatabasePoolCache, DatabasePoolCacheConfig, models::tenant::TenantId};
 use docbox_management::{
-    database::{DatabaseProvider, close_pool_on_drop},
+    core::{
+        aws::{SqsClient, aws_config},
+        events::{EventPublisherFactory, sqs::SqsEventPublisherFactory},
+        tenant::rebuild_tenant_index::{rebuild_tenant_index, recreate_search_index_data},
+    },
+    database::{
+        DatabasePoolCache, DatabasePoolCacheConfig, DatabaseProvider, close_pool_on_drop,
+        models::tenant::TenantId,
+    },
+    search::{SearchIndexFactory, SearchIndexFactoryConfig},
+    secrets::{SecretManager, SecretsManagerConfig, aws::AwsSecretManagerConfig},
+    storage::{StorageLayerFactory, StorageLayerFactoryConfig},
     tenant::{
         create_tenant::CreateTenantConfig,
         delete_tenant::{DeleteTenant, DeleteTenantOptions},
@@ -16,9 +21,6 @@ use docbox_management::{
         migrate_tenants_search::{MigrateTenantsSearchConfig, migrate_tenants_search},
     },
 };
-use docbox_search::{SearchIndexFactory, SearchIndexFactoryConfig};
-use docbox_secrets::{SecretManager, SecretsManagerConfig, aws::AwsSecretManagerConfig};
-use docbox_storage::{StorageLayerFactory, StorageLayerFactoryConfig};
 use eyre::{Context, ContextCompat};
 use reqwest::header::HeaderValue;
 use serde::{Deserialize, Serialize};

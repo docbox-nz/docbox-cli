@@ -1,5 +1,5 @@
 use crate::AdminDatabaseConfiguration;
-use docbox_database::{DbResult, PgConnectOptions, PgPool};
+use docbox_management::database::{DbPool, DbResult, PgConnectOptions, PgPool};
 
 pub struct CliDatabaseProvider {
     pub config: AdminDatabaseConfiguration,
@@ -8,10 +8,7 @@ pub struct CliDatabaseProvider {
 }
 
 impl docbox_management::database::DatabaseProvider for CliDatabaseProvider {
-    fn connect(
-        &self,
-        database: &str,
-    ) -> impl Future<Output = DbResult<docbox_database::DbPool>> + Send {
+    fn connect(&self, database: &str) -> impl Future<Output = DbResult<DbPool>> + Send {
         let options = PgConnectOptions::new()
             .host(&self.config.host)
             .port(self.config.port)
