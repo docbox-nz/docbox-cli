@@ -43,5 +43,5 @@ comfy-table = "7.2.1"
 inherits = "release"
 lto = "thin"
 
-[patch.crates-io]
-docbox-management = { version = "0.7.0", path = "../docbox/packages/docbox-management" }
+# [patch.crates-io]
+# docbox-management = { version = "0.7.0", path = "../docbox/packages/docbox-management" }

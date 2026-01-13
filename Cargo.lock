@@ -1428,6 +1428,8 @@ dependencies = [
 [[package]]
 name = "docbox-core"
 version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5305cfd9082f742f9ef1ef1bec4627569f48139b19565649031ff8e560c29b6c"
 dependencies = [
  "aws-config",
  "aws-sdk-sqs",
@@ -1459,6 +1461,8 @@ dependencies = [
 [[package]]
 name = "docbox-database"
 version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ce3b790c0c8104918c72cb71817f99ca07b9ff177494a5b9d76b84099bf46225"
 dependencies = [
  "chrono",
  "docbox-secrets",
@@ -1477,6 +1481,8 @@ dependencies = [
 [[package]]
 name = "docbox-management"
 version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6a5b4d85053af79fe96cafb6cf6cb268ae04dfa1f150f7b1744eac41657a67ae"
 dependencies = [
  "aws-config",
  "docbox-core",
@@ -1496,6 +1502,8 @@ dependencies = [
 [[package]]
 name = "docbox-processing"
 version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f038813e76738c97905c92fbe619eeedf578921615b3e0ee4054aa33d7a07f03"
 dependencies = [
  "aws-config",
  "aws-sdk-lambda",
@@ -1525,6 +1533,8 @@ dependencies = [
 [[package]]
 name = "docbox-search"
 version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c5714079a119c4b0099e12e0982d07bc34177fe643d268c0f955d81e41362aa8"
 dependencies = [
  "aws-config",
  "chrono",
@@ -1548,6 +1558,8 @@ dependencies = [
 [[package]]
 name = "docbox-secrets"
 version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "32759cd1c213d24aba2d15dbd4d622380d66c13e75c0b916b0e24b2298460c9f"
 dependencies = [
  "aws-config",
  "aws-sdk-secretsmanager",
@@ -1561,6 +1573,8 @@ dependencies = [
 [[package]]
 name = "docbox-storage"
 version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "650d0d4f5c12ce66c6b655cb25ac23844a16bfbb56fc63a2b660d0fccd245647"
 dependencies = [
  "aws-config",
  "aws-sdk-s3",
@@ -1578,6 +1592,8 @@ dependencies = [
 [[package]]
 name = "docbox-web-scraper"
 version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e189adb7f03b6034b1a07ad84de9edd20e73fa148fcac9a6c60b06c3a0c41b00"
 dependencies = [
  "base64",
  "bytes",
