@@ -1480,9 +1480,9 @@ dependencies = [
 
 [[package]]
 name = "docbox-management"
-version = "0.7.0"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6a5b4d85053af79fe96cafb6cf6cb268ae04dfa1f150f7b1744eac41657a67ae"
+checksum = "ef1e4141ac56d83799e156cd740f17333ec3aa4934cd8866286b9982d6b9e4d0"
 dependencies = [
  "aws-config",
  "docbox-core",
@@ -1492,6 +1492,7 @@ dependencies = [
  "docbox-storage",
  "futures",
  "rand 0.9.2",
+ "reqwest",
  "serde",
  "serde_json",
  "thiserror 2.0.17",

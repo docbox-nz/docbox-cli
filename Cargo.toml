@@ -15,7 +15,7 @@ dotenvy = "=0.15.7"
 clap = { version = "=4.5.40", features = ["derive"] }
 
 # Management access
-docbox-management = { version = "0.7.0" }
+docbox-management = { version = "0.8.0" }
 
 # Asynchronous runtime & Helpers
 tokio = { version = "=1.48.0", features = ["full"] }
@@ -44,4 +44,4 @@ inherits = "release"
 lto = "thin"
 
 # [patch.crates-io]
-# docbox-management = { version = "0.7.0", path = "../docbox/packages/docbox-management" }
+# docbox-management = { version = "0.8.0", path = "../docbox/packages/docbox-management" }

@@ -1,37 +1,27 @@
 use clap::{Parser, Subcommand, ValueEnum};
 use comfy_table::{Cell, Table, modifiers::UTF8_ROUND_CORNERS, presets::UTF8_FULL};
 use docbox_management::{
+    config::{ServerConfigData, load_server_config_data_secret},
     core::{
-        aws::{SqsClient, aws_config},
-        events::{EventPublisherFactory, sqs::SqsEventPublisherFactory},
+        aws::aws_config,
         tenant::rebuild_tenant_index::{rebuild_tenant_index, recreate_search_index_data},
     },
-    database::{
-        DatabasePoolCache, DatabasePoolCacheConfig, DatabaseProvider, close_pool_on_drop,
-        models::tenant::TenantId,
-    },
-    search::{SearchIndexFactory, SearchIndexFactoryConfig},
-    secrets::{SecretManager, SecretsManagerConfig, aws::AwsSecretManagerConfig},
-    storage::{StorageLayerFactory, StorageLayerFactoryConfig},
+    database::{DatabaseProvider, close_pool_on_drop, models::tenant::TenantId},
+    server::{ManagedServer, load_managed_server},
     tenant::{
         create_tenant::CreateTenantConfig,
         delete_tenant::{DeleteTenant, DeleteTenantOptions},
+        flush_tenant_cache::flush_tenant_cache,
         get_tenant::get_tenant,
         migrate_tenants::MigrateTenantsConfig,
         migrate_tenants_search::{MigrateTenantsSearchConfig, migrate_tenants_search},
     },
 };
 use eyre::{Context, ContextCompat};
-use reqwest::header::HeaderValue;
-use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::{path::PathBuf, sync::Arc};
+use std::path::PathBuf;
 use tracing_indicatif::IndicatifLayer;
 use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
-
-use crate::database::CliDatabaseProvider;
-
-mod database;
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -60,37 +50,6 @@ pub enum OutputFormat {
 
     /// Provide output in machine readable JSON format
     Json,
-}
-
-#[derive(Clone, Deserialize)]
-pub struct CliConfiguration {
-    pub api: ApiConfig,
-    pub database: AdminDatabaseConfiguration,
-    pub secrets: SecretsManagerConfig,
-    pub search: SearchIndexFactoryConfig,
-    pub storage: StorageLayerFactoryConfig,
-}
-
-#[derive(Clone, Deserialize, Serialize)]
-pub struct ApiConfig {
-    pub url: String,
-    pub api_key: Option<String>,
-}
-
-#[derive(Clone, Deserialize, Serialize)]
-pub struct AdminDatabaseConfiguration {
-    pub host: String,
-    pub port: u16,
-    pub setup_user: Option<AdminDatabaseSetupUserConfig>,
-    pub setup_user_secret_name: Option<String>,
-    pub root_secret_name: String,
-}
-
-#[derive(Clone, Deserialize, Serialize)]
-pub struct AdminDatabaseSetupUserConfig {
-    #[serde(alias = "user")]
-    pub username: String,
-    pub password: String,
 }
 
 #[derive(Subcommand)]
@@ -283,26 +242,15 @@ async fn app(args: Args) -> eyre::Result<()> {
     let aws_config = aws_config().await;
 
     // Load the config data
-    let config: CliConfiguration = match (args.config, args.aws_config_secret) {
+    let config: ServerConfigData = match (args.config, args.aws_config_secret) {
         (Some(config_path), _) => {
             let config_raw = tokio::fs::read(config_path).await?;
-            let config: CliConfiguration =
+            let config: ServerConfigData =
                 serde_json::from_slice(&config_raw).context("failed to parse config")?;
             config
         }
         (_, Some(config_secret_name)) => {
-            let secrets = SecretManager::from_config(
-                &aws_config,
-                SecretsManagerConfig::Aws(
-                    AwsSecretManagerConfig::from_env()
-                        .context("failed to load aws secrets manager config")?,
-                ),
-            );
-            secrets
-                .parsed_secret(&config_secret_name)
-                .await
-                .context("failed to get config secret")?
-                .context("config secret not found")?
+            load_server_config_data_secret(&aws_config, &config_secret_name).await?
         }
 
         _ => eyre::bail!(
@@ -310,66 +258,14 @@ async fn app(args: Args) -> eyre::Result<()> {
         ),
     };
 
-    let secrets = SecretManager::from_config(&aws_config, config.secrets.clone());
-
-    // Create the SQS client
-    // Warning: Will panic if the configuration provided is invalid
-    let sqs_client = SqsClient::new(&aws_config);
-
-    // Setup event publisher factories
-    let sqs_publisher_factory = SqsEventPublisherFactory::new(sqs_client.clone());
-    let events = EventPublisherFactory::new(sqs_publisher_factory);
-
-    // Setup database cache / connector
-    let db_cache = Arc::new(DatabasePoolCache::from_config(
-        DatabasePoolCacheConfig {
-            host: config.database.host.clone(),
-            port: config.database.port,
-            root_secret_name: config.database.root_secret_name.clone(),
-            max_connections: None,
-            ..Default::default()
-        },
-        secrets.clone(),
-    ));
-
-    let search_factory = SearchIndexFactory::from_config(
-        &aws_config,
-        secrets.clone(),
+    let ManagedServer {
         db_cache,
-        config.search.clone(),
-    )?;
-    let storage_factory = StorageLayerFactory::from_config(&aws_config, config.storage.clone());
-
-    let db_provider = match (
-        config.database.setup_user.as_ref(),
-        config.database.setup_user_secret_name.as_deref(),
-    ) {
-        (Some(setup_user), _) => CliDatabaseProvider {
-            config: config.database.clone(),
-            username: setup_user.username.clone(),
-            password: setup_user.password.clone(),
-        },
-        (_, Some(setup_user_secret_name)) => {
-            let secret: AdminDatabaseSetupUserConfig = secrets
-                .parsed_secret(setup_user_secret_name)
-                .await
-                .context("failed to get setup user database secret")?
-                .context("setup user database secret not found")?;
-
-            tracing::debug!("loaded database secrets from secret manager");
-
-            CliDatabaseProvider {
-                config: config.database.clone(),
-                username: secret.username.clone(),
-                password: secret.password.clone(),
-            }
-        }
-        (None, None) => {
-            return Err(eyre::eyre!(
-                "must provided either setup_user or setup_user_secret_name in database config"
-            ));
-        }
-    };
+        db_provider,
+        secrets,
+        search,
+        storage,
+        events,
+    } = load_managed_server(&aws_config, &config).await.unwrap();
 
     match args.command {
         Commands::CreateRoot => {
@@ -434,8 +330,8 @@ async fn app(args: Args) -> eyre::Result<()> {
 
             let tenant = docbox_management::tenant::create_tenant::create_tenant(
                 &db_provider,
-                &search_factory,
-                &storage_factory,
+                &search,
+                &storage,
                 &secrets,
                 tenant_config,
             )
@@ -478,6 +374,15 @@ async fn app(args: Args) -> eyre::Result<()> {
             delete_storage,
             permanently_delete_secret,
         } => {
+            let tenant =
+                docbox_management::tenant::get_tenant::get_tenant(&db_provider, &env, tenant_id)
+                    .await?
+                    .context("tenant not found")?;
+
+            // Must close the connections in advance to ensure the tenant
+            // database can be deleted
+            db_cache.close_tenant_pool(&tenant).await;
+
             // Tell the API server to flush and close its database pools
             flush_tenant_cache(&config.api)
                 .await
@@ -485,8 +390,8 @@ async fn app(args: Args) -> eyre::Result<()> {
 
             docbox_management::tenant::delete_tenant::delete_tenant(
                 &db_provider,
-                &search_factory,
-                &storage_factory,
+                &search,
+                &storage,
                 &events,
                 &secrets,
                 DeleteTenant {
@@ -680,7 +585,7 @@ async fn app(args: Args) -> eyre::Result<()> {
         } => {
             let outcome = migrate_tenants_search(
                 &db_provider,
-                &search_factory,
+                &search,
                 MigrateTenantsSearchConfig {
                     env: Some(env),
                     tenant_id,
@@ -735,8 +640,8 @@ async fn app(args: Args) -> eyre::Result<()> {
                 .await?
                 .context("tenant not found")?;
 
-            let search = search_factory.create_search_index(&tenant);
-            let storage = storage_factory.create_storage_layer(&tenant);
+            let search = search.create_search_index(&tenant);
+            let storage = storage.create_storage_layer(&tenant);
 
             // Connect to the tenant database
             let db = db_provider
@@ -773,7 +678,7 @@ async fn app(args: Args) -> eyre::Result<()> {
                     .await?
                     .context("tenant not found")?;
 
-            let storage = storage_factory.create_storage_layer(&tenant);
+            let storage = storage.create_storage_layer(&tenant);
 
             storage.set_bucket_cors_origins(origin).await?;
 
@@ -794,32 +699,4 @@ async fn app(args: Args) -> eyre::Result<()> {
             Ok(())
         }
     }
-}
-
-/// Makes a request to the docbox API server telling it to flush its
-/// database cache
-pub async fn flush_tenant_cache(api: &ApiConfig) -> eyre::Result<()> {
-    let client = reqwest::Client::new();
-
-    let url = format!("{}/admin/flush-db-cache", &api.url);
-    let mut req_builder = client.post(&url);
-
-    if let Some(api_key) = api.api_key.as_ref() {
-        req_builder = req_builder.header(
-            reqwest::header::HeaderName::from_static("x-docbox-api-key"),
-            HeaderValue::from_str(api_key).context("failed to make header value")?,
-        );
-    }
-
-    let response = req_builder
-        .send()
-        .await
-        .inspect_err(|error| tracing::error!(?error, "failed to request docbox"))
-        .context("failed to request docbox")?;
-
-    response
-        .error_for_status()
-        .context("error response flushing db cache")?;
-
-    Ok(())
 }
