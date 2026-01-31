@@ -4,7 +4,10 @@ use docbox_management::{
     config::{ServerConfigData, load_server_config_data_secret},
     core::{
         aws::aws_config,
-        tenant::rebuild_tenant_index::{rebuild_tenant_index, recreate_search_index_data},
+        tenant::{
+            rebuild_tenant_index::{rebuild_tenant_index, recreate_search_index_data},
+            tenant_options_ext::TenantOptionsExt,
+        },
     },
     database::{DatabaseProvider, close_pool_on_drop, models::tenant::TenantId},
     server::{ManagedServer, load_managed_server},
@@ -13,6 +16,7 @@ use docbox_management::{
         delete_tenant::{DeleteTenant, DeleteTenantOptions},
         flush_tenant_cache::flush_tenant_cache,
         get_tenant::get_tenant,
+        migrate_tenant_secret_to_iam::migrate_tenant_secret_to_iam,
         migrate_tenants::MigrateTenantsConfig,
         migrate_tenants_search::{MigrateTenantsSearchConfig, migrate_tenants_search},
     },
@@ -173,6 +177,16 @@ pub enum Commands {
         #[arg(short, long)]
         origin: Vec<String>,
     },
+
+    /// Migrate tenants from secrets to IAM
+    MigrateTenantIam {
+        // Environment to target
+        #[arg(short, long)]
+        env: String,
+        /// Specific tenant to run against
+        #[arg(short, long)]
+        tenant_id: Option<TenantId>,
+    },
 }
 
 #[tokio::main]
@@ -269,13 +283,19 @@ async fn app(args: Args) -> eyre::Result<()> {
 
     match args.command {
         Commands::CreateRoot => {
-            docbox_management::root::initialize::initialize(
-                &db_provider,
-                &secrets,
-                &config.database.root_secret_name,
-            )
-            .await
-            .context("failed to setup root")?;
+            if config.database.root_iam {
+                docbox_management::root::initialize::initialize_iam(&db_provider)
+                    .await
+                    .context("failed to setup root (iam)")?;
+            } else if let Some(root_secret_name) = config.database.root_secret_name.as_ref() {
+                docbox_management::root::initialize::initialize(
+                    &db_provider,
+                    &secrets,
+                    root_secret_name,
+                )
+                .await
+                .context("failed to setup root")?;
+            }
 
             match args.format {
                 OutputFormat::Human => {
@@ -480,7 +500,19 @@ async fn app(args: Args) -> eyre::Result<()> {
                     table.add_row(vec![Cell::new("DB Name"), Cell::new(tenant.db_name)]);
                     table.add_row(vec![
                         Cell::new("DB Secret Name"),
-                        Cell::new(tenant.db_secret_name),
+                        Cell::new(if let Some(value) = tenant.db_secret_name {
+                            format!("Some({value}")
+                        } else {
+                            "None".to_string()
+                        }),
+                    ]);
+                    table.add_row(vec![
+                        Cell::new("DB IAM User Name"),
+                        Cell::new(if let Some(value) = tenant.db_iam_user_name {
+                            format!("Some({value}")
+                        } else {
+                            "None".to_string()
+                        }),
                     ]);
                     table.add_row(vec![
                         Cell::new("Storage Bucket Name"),
@@ -641,7 +673,7 @@ async fn app(args: Args) -> eyre::Result<()> {
                 .context("tenant not found")?;
 
             let search = search.create_search_index(&tenant);
-            let storage = storage.create_storage_layer(&tenant);
+            let storage = storage.create_layer(tenant.storage_layer_options());
 
             // Connect to the tenant database
             let db = db_provider
@@ -678,7 +710,7 @@ async fn app(args: Args) -> eyre::Result<()> {
                     .await?
                     .context("tenant not found")?;
 
-            let storage = storage.create_storage_layer(&tenant);
+            let storage = storage.create_layer(tenant.storage_layer_options());
 
             storage.set_bucket_cors_origins(origin).await?;
 
@@ -690,6 +722,61 @@ async fn app(args: Args) -> eyre::Result<()> {
                     println!(
                         "{}",
                         serde_json::to_string_pretty(&json!({
+                            "success": true
+                        }))?
+                    );
+                }
+            }
+
+            Ok(())
+        }
+
+        Commands::MigrateTenantIam { env, tenant_id } => {
+            let mut tenants =
+                docbox_management::tenant::get_tenants::get_tenants(&db_provider).await?;
+
+            tenants.retain(|tenant| {
+                tenant.env.eq(&env) && tenant_id.is_none_or(|id| tenant.id.eq(&id))
+            });
+
+            let mut migrated_tenants = Vec::new();
+
+            for mut tenant in tenants {
+                if tenant.db_iam_user_name.is_some() {
+                    tracing::debug!(?tenant, "skipping tenant with iam user name already set");
+                    continue;
+                }
+
+                migrate_tenant_secret_to_iam(&db_provider, &secrets, &mut tenant).await?;
+                migrated_tenants.push(tenant);
+            }
+
+            match args.format {
+                OutputFormat::Human => {
+                    let mut table = Table::new();
+                    table
+                        .load_preset(UTF8_FULL)
+                        .apply_modifier(UTF8_ROUND_CORNERS)
+                        .set_content_arrangement(comfy_table::ContentArrangement::Dynamic)
+                        .set_header(vec!["ID", "Name", "Env", "Outcome"]);
+
+                    for tenant in migrated_tenants {
+                        table.add_row(vec![
+                            Cell::new(tenant.id.to_string()),
+                            Cell::new(tenant.name),
+                            Cell::new(tenant.env),
+                            Cell::new("Success"),
+                        ]);
+                    }
+
+                    println!("migrated tenants to IAM based authentication");
+                    println!("{table}")
+                }
+                OutputFormat::Json => {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&json!({
+                            "migrated_tenants": migrated_tenants,
                             "success": true
                         }))?
                     );
