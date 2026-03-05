@@ -19,6 +19,7 @@ use docbox_management::{
         migrate_tenant_secret_to_iam::migrate_tenant_secret_to_iam,
         migrate_tenants::MigrateTenantsConfig,
         migrate_tenants_search::{MigrateTenantsSearchConfig, migrate_tenants_search},
+        migrate_tenants_storage::{MigrateTenantsStorageConfig, migrate_tenants_storage},
     },
 };
 use eyre::{Context, ContextCompat};
@@ -150,6 +151,22 @@ pub enum Commands {
 
     /// Run a search migration
     MigrateSearch {
+        // Environment to target
+        #[arg(short, long)]
+        env: String,
+        /// Optional Name of the migration
+        #[arg(short, long)]
+        name: Option<String>,
+        /// Specific tenant to run against
+        #[arg(short, long)]
+        tenant_id: Option<TenantId>,
+        /// Skip failed migrations
+        #[arg(short, long)]
+        skip_failed: bool,
+    },
+
+    /// Run a storage migration
+    MigrateStorage {
         // Environment to target
         #[arg(short, long)]
         env: String,
@@ -619,6 +636,60 @@ async fn app(args: Args) -> eyre::Result<()> {
                 &db_provider,
                 &search,
                 MigrateTenantsSearchConfig {
+                    env: Some(env),
+                    tenant_id,
+                    skip_failed,
+                    target_migration_name: name,
+                },
+            )
+            .await?;
+
+            match args.format {
+                OutputFormat::Human => {
+                    let mut table = Table::new();
+                    table
+                        .load_preset(UTF8_FULL)
+                        .apply_modifier(UTF8_ROUND_CORNERS)
+                        .set_content_arrangement(comfy_table::ContentArrangement::Dynamic)
+                        .set_header(vec!["ID", "Name", "Env", "Outcome"]);
+
+                    for tenant in outcome.applied_tenants {
+                        table.add_row(vec![
+                            Cell::new(tenant.tenant_id.to_string()),
+                            Cell::new(tenant.name),
+                            Cell::new(tenant.env),
+                            Cell::new("Success"),
+                        ]);
+                    }
+                    for (error, tenant) in outcome.failed_tenants {
+                        table.add_row(vec![
+                            Cell::new(tenant.tenant_id.to_string()),
+                            Cell::new(tenant.name),
+                            Cell::new(tenant.env),
+                            Cell::new(format!("Failed: {error}")),
+                        ]);
+                    }
+
+                    println!("{table}")
+                }
+                OutputFormat::Json => {
+                    println!("{}", serde_json::to_string_pretty(&outcome)?);
+                }
+            }
+
+            Ok(())
+        }
+
+        Commands::MigrateStorage {
+            env,
+            name,
+            tenant_id,
+            skip_failed,
+        } => {
+            let outcome = migrate_tenants_storage(
+                &db_provider,
+                &storage,
+                MigrateTenantsStorageConfig {
                     env: Some(env),
                     tenant_id,
                     skip_failed,
